@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: ingest-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: logs
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: ingest-redis
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio
+    container_name: ingest-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb -p local/log-bucket;
+      mc anonymous set download local/log-bucket;
+      exit 0;
+      "
+
+  ingest-service:
+    build: ./ingest-service
+    container_name: ingest-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@ingest-postgres:5432/logs
+      REDIS_URL: redis://ingest-redis:6379
+      S3_ENDPOINT: http://ingest-minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: log-bucket
+    ports:
+      - "8000:8000"
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+  # rust-worker:
+  #   build: ./rust-worker
+  #   container_name: rust-worker
+  #   depends_on:
+  #     - redis
+  #     - postgres
+  #     - minio
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/logs
+  #     REDIS_URL: redis://redis:6379
+  #     S3_ENDPOINT: http://minio:9000
+  #     S3_ACCESS_KEY: minioadmin
+  #     S3_SECRET_KEY: minioadmin
+  #     S3_BUCKET: log-bucket
+  #   command: ["./worker"]
+
+volumes:
+  pgdata:
+  minio_data:

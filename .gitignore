@@ -1,0 +1,74 @@
+############################
+# Python
+############################
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Pydantic / FastAPI
+*.log
+
+############################
+# Node / React
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+
+############################
+# Rust
+############################
+target/
+**/*.rs.bk
+Cargo.lock
+
+############################
+# IDEs / Editors
+############################
+.vscode/
+.idea/
+*.iml
+
+############################
+# OS
+############################
+.DS_Store
+Thumbs.db
+
+############################
+# Docker
+############################
+*.pid
+docker-compose.override.yml
+
+############################
+# Env / Secrets
+############################
+.env
+.env.*
+!.env.example
+
+############################
+# Logs / Runtime
+############################
+logs/
+tmp/
