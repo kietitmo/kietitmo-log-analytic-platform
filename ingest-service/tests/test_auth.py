@@ -5,16 +5,10 @@ import pytest
 from datetime import timedelta
 from unittest.mock import patch
 
-from app.auth import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    verify_password,
-    get_password_hash,
-    get_current_user,
-    create_test_token,
-)
-from app.exceptions import ValidationError
+from app.auth.jwt import create_access_token, create_refresh_token, decode_token
+from app.auth.utils import verify_password, get_password_hash
+from app.auth.dependencies import get_current_user
+from app.common.exceptions.infrastucture import ValidationError
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
@@ -93,7 +87,7 @@ class TestAuth:
         
         # Manually create expired token
         from jose import jwt
-        from app.config import settings
+        from app.common.config import settings
         
         expired_token = jwt.encode(
             data,
@@ -108,7 +102,14 @@ class TestAuth:
     
     def test_create_test_token(self):
         """Test test token creation."""
-        token = create_test_token(user_id="test-123", username="testuser")
+        token_data = {
+            "sub": "test-123",
+            "username": "testuser",
+            "email": "testuser@test.com",
+            "roles": ["user"],
+            "permissions": [],
+        }
+        token = create_access_token(token_data)
         
         assert token is not None
         payload = decode_token(token)
@@ -121,7 +122,14 @@ class TestAuth:
         from fastapi.security import HTTPAuthorizationCredentials
         
         # Create a valid token
-        token = create_test_token(user_id="user-123", username="testuser")
+        token_data = {
+            "sub": "user-123",
+            "username": "testuser",
+            "email": "testuser@test.com",
+            "roles": ["user"],
+            "permissions": [],
+        }
+        token = create_access_token(token_data)
         
         # Mock credentials
         mock_credentials = HTTPAuthorizationCredentials(

@@ -4,10 +4,10 @@ Tests for JobService.
 import pytest
 from datetime import datetime, timezone
 
-from app.services.job_service import JobService
-from app.models import Job, FileUpload
-from app.constants import JobStatus, JobType, StorageType, LogFormat
-from app.exceptions import JobNotFoundError, InvalidJobStateError
+from app.jobs.service import JobService
+from app.jobs.models import Job, FileUpload
+from app.common.constants import JobStatus, JobType, StorageType, LogFormat
+from app.jobs.exceptions import JobNotFoundError, InvalidJobStateError
 
 
 class TestJobService:

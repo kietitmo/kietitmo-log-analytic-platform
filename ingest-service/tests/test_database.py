@@ -4,9 +4,9 @@ Tests for database module.
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.database import get_db, check_db_connection, init_db
-from app.models import Job
-from app.constants import JobStatus, JobType
+from app.common.database import get_db, check_db_connection, init_db
+from app.jobs.models import Job
+from app.common.constants import JobStatus, JobType
 
 
 class TestDatabase:
@@ -14,7 +14,7 @@ class TestDatabase:
     
     def test_get_db_context(self, db_session):
         """Test database context manager."""
-        from app.database import get_db_context
+        from app.common.database import get_db_context
         
         with get_db_context() as db:
             assert db is not None

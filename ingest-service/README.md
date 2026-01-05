@@ -6,6 +6,7 @@ Log ingestion service for uploading and processing log files. This service provi
 
 - [Overview](#overview)
 - [Architecture](#architecture)
+- [Project Structure](#project-structure)
 - [Features](#features)
 - [System Flow](#system-flow)
 - [Class Diagrams](#class-diagrams)
@@ -23,10 +24,63 @@ The Ingest Service is a FastAPI-based microservice that handles:
 - **File Upload**: Initialize and complete file uploads to S3/MinIO
 - **Job Management**: Track and monitor ingestion jobs
 - **Authentication**: JWT-based authentication and authorization
+- **User Management**: User CRUD operations with role-based access control
 - **Rate Limiting**: Protect APIs from abuse
 - **Request Timeout**: Prevent long-running requests
 
 ## Architecture
+
+### Domain-Driven Structure
+
+The service follows a **domain-driven design** pattern where each domain is self-contained and separated:
+
+```
+app/
+├── common/              # Shared infrastructure
+│   ├── config.py        # Application settings
+│   ├── database.py      # Database configuration
+│   ├── logger.py        # Logging setup
+│   ├── constants.py     # Application constants
+│   ├── exceptions/      # Domain & infrastructure exceptions
+│   ├── infrastructure/  # External services
+│   │   ├── storage.py   # S3/MinIO operations
+│   │   └── queue.py     # Redis queue operations
+│   ├── middleware/      # Request middleware
+│   │   ├── rate_limit.py
+│   │   └── timeout.py
+│   └── routers/         # Common routers
+│       └── health.py
+├── auth/                # Authentication & Authorization domain
+│   ├── models.py        # Roles, permissions, context
+│   ├── authorization.py # Permission resolution & policies
+│   ├── service.py       # Authentication service
+│   ├── jwt.py          # JWT token operations
+│   ├── utils.py        # Password hashing
+│   ├── dependencies.py # FastAPI dependencies
+│   ├── schemas.py      # Request/response schemas
+│   ├── exceptions.py   # Auth exceptions
+│   └── router.py       # Auth API routes
+├── users/               # User management domain
+│   ├── models.py       # User model
+│   ├── service.py      # User service
+│   ├── router.py       # User API routes
+│   ├── schemas/        # User schemas
+│   └── exceptions.py   # User exceptions
+├── jobs/                # Job management domain
+│   ├── models.py       # Job, FileUpload models
+│   ├── service.py      # Job service
+│   ├── router.py       # Jobs API routes
+│   ├── schemas.py      # Job schemas
+│   └── exceptions.py   # Job exceptions
+├── ingest/              # File ingestion domain
+│   ├── service.py      # Upload service
+│   ├── router.py       # Ingest API routes
+│   ├── schemas.py      # Upload schemas
+│   └── exceptions.py   # Ingest exceptions
+└── main.py             # FastAPI application entry point
+```
+
+### Architecture Diagram
 
 ```mermaid
 graph TB
@@ -41,16 +95,17 @@ graph TB
         Timeout[Timeout Middleware]
     end
     
-    subgraph "Service Layer"
-        IngestRouter[Ingest Router]
-        JobsRouter[Jobs Router]
-        AuthRouter[Auth Router]
-        HealthRouter[Health Router]
+    subgraph "Domain Layer"
+        IngestDomain[Ingest Domain<br/>router, service, schemas]
+        JobsDomain[Jobs Domain<br/>router, service, models, schemas]
+        AuthDomain[Auth Domain<br/>router, service, jwt, authorization]
+        UsersDomain[Users Domain<br/>router, service, models, schemas]
     end
     
-    subgraph "Business Logic"
-        UploadService[Upload Service]
-        JobService[Job Service]
+    subgraph "Common Infrastructure"
+        Common[Common<br/>database, config, logger, middleware]
+        Storage[Storage Infrastructure<br/>S3/MinIO]
+        Queue[Queue Infrastructure<br/>Redis]
     end
     
     subgraph "Data Layer"
@@ -63,25 +118,107 @@ graph TB
     API --> Auth
     API --> RateLimit
     API --> Timeout
-    API --> IngestRouter
-    API --> JobsRouter
-    API --> AuthRouter
-    API --> HealthRouter
+    API --> IngestDomain
+    API --> JobsDomain
+    API --> AuthDomain
+    API --> UsersDomain
     
-    IngestRouter --> UploadService
-    JobsRouter --> JobService
-    AuthRouter --> Auth
+    IngestDomain --> JobsDomain
+    IngestDomain --> Storage
+    IngestDomain --> Queue
+    JobsDomain --> DB
+    AuthDomain --> UsersDomain
     
-    UploadService --> JobService
-    UploadService --> S3
-    UploadService --> Redis
-    JobService --> DB
+    Storage --> S3
+    Queue --> Redis
+    Common --> DB
     
     style API fill:#4A90E2
+    style IngestDomain fill:#50C878
+    style JobsDomain fill:#50C878
+    style AuthDomain fill:#50C878
+    style UsersDomain fill:#50C878
     style DB fill:#336791
     style Redis fill:#DC382D
     style S3 fill:#FF9900
 ```
+
+## Project Structure
+
+The service follows a **Domain-Driven Design (DDD)** pattern where each domain is self-contained:
+
+```
+app/
+├── common/                    # Shared infrastructure
+│   ├── config.py             # Application settings with validation
+│   ├── database.py            # Database configuration & session management
+│   ├── logger.py             # Structured logging setup
+│   ├── constants.py           # Application constants (JobStatus, JobType, etc.)
+│   ├── exceptions/            # Base exception classes
+│   │   ├── domain.py         # Domain exceptions
+│   │   └── infrastucture.py  # Infrastructure exceptions
+│   ├── infrastructure/        # External service integrations
+│   │   ├── storage.py        # S3/MinIO operations
+│   │   └── queue.py          # Redis queue operations
+│   ├── middleware/            # Request middleware
+│   │   ├── rate_limit.py     # Rate limiting
+│   │   └── timeout.py        # Request timeout
+│   └── routers/              # Common routers
+│       └── health.py         # Health check endpoints
+│
+├── auth/                      # Authentication & Authorization Domain
+│   ├── models.py             # Roles, Permissions, AuthContext
+│   ├── authorization.py      # Permission resolution & policies
+│   ├── service.py            # Authentication service (login)
+│   ├── jwt.py                # JWT token operations
+│   ├── utils.py              # Password hashing utilities
+│   ├── dependencies.py       # FastAPI dependencies (get_current_user, etc.)
+│   ├── schemas.py            # Request/response schemas
+│   ├── exceptions.py         # Auth domain exceptions
+│   └── router.py             # Auth API routes
+│
+├── users/                     # User Management Domain
+│   ├── models.py             # User database model
+│   ├── service.py            # User service (CRUD operations)
+│   ├── router.py             # User API routes
+│   ├── schemas/              # User schemas
+│   │   ├── commands.py      # Command schemas
+│   │   ├── requests.py       # Request schemas
+│   │   └── responses.py      # Response schemas
+│   └── exceptions.py         # User domain exceptions
+│
+├── jobs/                      # Job Management Domain
+│   ├── models.py             # Job, FileUpload database models
+│   ├── service.py            # Job service (create, update, query)
+│   ├── router.py             # Jobs API routes
+│   ├── schemas.py            # Job request/response schemas
+│   └── exceptions.py         # Job domain exceptions
+│
+├── ingest/                    # File Ingestion Domain
+│   ├── service.py            # Upload service (init, complete)
+│   ├── router.py             # Ingest API routes
+│   ├── schemas.py            # Upload request/response schemas
+│   └── exceptions.py         # Ingest domain exceptions
+│
+├── scripts/                   # Utility scripts
+│   └── init_users.py         # Initialize default users
+│
+└── main.py                    # FastAPI application entry point
+```
+
+### Domain Organization Principles
+
+1. **Self-contained**: Each domain has its own models, services, routers, schemas, and exceptions
+2. **Isolated**: Domains don't directly import from each other (except through common)
+3. **Extensible**: Easy to add new features within a domain
+4. **Testable**: Each domain can be tested independently
+
+### Import Guidelines
+
+- ✅ Domains can import from `common/`
+- ✅ Domains can import from other domains' public interfaces (schemas, exceptions)
+- ❌ Domains should NOT import internal implementation details from other domains
+- ✅ Use dependency injection for cross-domain dependencies
 
 ## Features
 
@@ -709,7 +846,18 @@ docker-compose up -d ingest-service
 
 ### Configuration File
 
-See `app/config.py` for all configuration options with validation.
+See `app/common/config.py` for all configuration options with validation.
+
+**Note**: The application automatically validates production configuration on startup. See [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) for details.
+
+### Production Configuration Validation
+
+The application automatically validates production configuration on startup. Ensure:
+- `JWT_SECRET_KEY` is set to a secure value (not default)
+- `CORS_ORIGINS` does not contain `["*"]` in production
+- `S3_ACCESS_KEY` and `S3_SECRET_KEY` are not default values
+- `DEBUG=False` in production
+- `ENVIRONMENT=production`
 
 ## Usage
 
@@ -793,18 +941,27 @@ pytest --cov=app --cov-report=term-missing
 
 ### Production Checklist
 
+See [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) for detailed checklist.
+
+**Critical Requirements:**
+- [x] ✅ Production configuration validation (auto-validates on startup)
+- [x] ✅ JWT secret key validation
+- [x] ✅ CORS configuration validation
+- [x] ✅ S3 credentials validation
+- [x] ✅ Filename sanitization
+- [x] ✅ File size limits (100MB max)
+- [x] ✅ Refresh token validation
 - [ ] Set `ENVIRONMENT=production`
 - [ ] Set `DEBUG=false`
 - [ ] Change `JWT_SECRET_KEY` to a strong random value
 - [ ] Configure proper `DATABASE_URL`
 - [ ] Configure proper `REDIS_URL`
-- [ ] Configure S3 credentials
-- [ ] Set up proper CORS origins
+- [ ] Configure S3 credentials (not defaults)
+- [ ] Set up proper CORS origins (not `["*"]`)
 - [ ] Configure rate limits appropriately
 - [ ] Set up monitoring and alerting
 - [ ] Configure logging aggregation
 - [ ] Set up health check monitoring
-- [ ] Review and update demo users (use database)
 
 ### Docker Production
 
@@ -835,49 +992,67 @@ graph TB
         Middleware[Middleware<br/>CORS, Timeout, Rate Limit]
     end
     
-    subgraph "Router Layer"
-        IngestR[ingest.py<br/>File Upload]
-        JobsR[jobs.py<br/>Job Management]
-        AuthR[auth.py<br/>Authentication]
-        HealthR[health.py<br/>Health Checks]
+    subgraph "Domain Layer - Ingest"
+        IngestR[ingest/router.py<br/>File Upload API]
+        UploadS[ingest/service.py<br/>Upload Logic]
+        IngestSchemas[ingest/schemas.py]
     end
     
-    subgraph "Service Layer"
-        UploadS[upload_service.py<br/>Upload Logic]
-        JobS[job_service.py<br/>Job Logic]
+    subgraph "Domain Layer - Jobs"
+        JobsR[jobs/router.py<br/>Job Management API]
+        JobS[jobs/service.py<br/>Job Logic]
+        JobModels[jobs/models.py<br/>Job, FileUpload]
+        JobSchemas[jobs/schemas.py]
     end
     
-    subgraph "Infrastructure"
-        AuthM[auth.py<br/>JWT & Password]
-        DB[database.py<br/>PostgreSQL]
-        Queue[queue.py<br/>Redis Streams]
-        Storage[storage.py<br/>S3/MinIO]
-        Config[config.py<br/>Settings]
-        Logger[logger.py<br/>Logging]
+    subgraph "Domain Layer - Auth"
+        AuthR[auth/router.py<br/>Authentication API]
+        AuthS[auth/service.py<br/>Auth Logic]
+        AuthJWT[auth/jwt.py<br/>JWT Operations]
+        AuthAuthz[auth/authorization.py<br/>Permissions & Policies]
+        AuthModels[auth/models.py<br/>Roles, Permissions]
+    end
+    
+    subgraph "Domain Layer - Users"
+        UsersR[users/router.py<br/>User Management API]
+        UsersS[users/service.py<br/>User Logic]
+        UserModels[users/models.py<br/>User Model]
+    end
+    
+    subgraph "Common Infrastructure"
+        CommonDB[common/database.py<br/>PostgreSQL]
+        CommonConfig[common/config.py<br/>Settings]
+        CommonLogger[common/logger.py<br/>Logging]
+        Storage[common/infrastructure/storage.py<br/>S3/MinIO]
+        Queue[common/infrastructure/queue.py<br/>Redis Streams]
+        HealthR[common/routers/health.py<br/>Health Checks]
     end
     
     Main --> Middleware
     Main --> IngestR
     Main --> JobsR
     Main --> AuthR
+    Main --> UsersR
     Main --> HealthR
     
     IngestR --> UploadS
     JobsR --> JobS
-    AuthR --> AuthM
+    AuthR --> AuthS
+    UsersR --> UsersS
     
     UploadS --> JobS
     UploadS --> Storage
     UploadS --> Queue
-    JobS --> DB
-    
-    IngestR --> AuthM
-    JobsR --> AuthM
+    JobS --> CommonDB
+    AuthS --> AuthJWT
+    AuthS --> UsersS
     
     style Main fill:#4A90E2
-    style UploadS fill:#50C878
-    style JobS fill:#50C878
-    style DB fill:#336791
+    style IngestR fill:#50C878
+    style JobsR fill:#50C878
+    style AuthR fill:#50C878
+    style UsersR fill:#50C878
+    style CommonDB fill:#336791
     style Queue fill:#DC382D
     style Storage fill:#FF9900
 ```
@@ -1027,11 +1202,12 @@ graph TB
 - Standard protocol
 - Refresh token support
 
-### Why Service Layer Pattern?
-- Separation of concerns
-- Testability
-- Reusability
-- Maintainability
+### Why Domain-Driven Design?
+- **Separation of concerns**: Each domain is self-contained
+- **Scalability**: Easy to add new domains without affecting others
+- **Maintainability**: Clear boundaries and responsibilities
+- **Testability**: Each domain can be tested independently
+- **Team collaboration**: Different teams can work on different domains
 
 ## Troubleshooting
 

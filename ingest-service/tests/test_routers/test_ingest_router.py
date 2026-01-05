@@ -4,18 +4,18 @@ Tests for ingest router.
 import pytest
 from unittest.mock import patch, MagicMock
 
-from app.models import Job, FileUpload
-from app.constants import JobStatus, JobType
+from app.jobs.models import Job, FileUpload
+from app.common.constants import JobStatus, JobType
 
 
 class TestIngestRouter:
     """Test cases for ingest router."""
     
-    @patch("app.routers.ingest.UploadService.init_upload")
+    @patch("app.ingest.router.UploadService.init_upload")
     def test_init_upload_success(self, mock_init, client, auth_headers):
         """Test successful upload initialization."""
-        from app.models import Job, FileUpload
-        from app.constants import JobStatus, JobType
+        from app.jobs.models import Job, FileUpload
+        from app.common.constants import JobStatus, JobType
         
         # Create mock return values
         mock_job = MagicMock(spec=Job)
@@ -97,10 +97,10 @@ class TestIngestRouter:
         
         assert response.status_code == 422
     
-    @patch("app.routers.ingest.UploadService.init_upload")
+    @patch("app.ingest.router.UploadService.init_upload")
     def test_init_upload_storage_error(self, mock_init, client):
         """Test upload initialization with storage error."""
-        from app.exceptions import StorageError
+        from app.common.exceptions.infrastucture import StorageError
         
         mock_init.side_effect = StorageError("Storage unavailable")
         
@@ -116,7 +116,7 @@ class TestIngestRouter:
         assert response.status_code == 503
         assert "Storage" in response.json()["detail"]
     
-    @patch("app.routers.ingest.UploadService.complete_upload")
+    @patch("app.ingest.router.UploadService.complete_upload")
     def test_complete_upload_success(self, mock_complete, client, sample_job, auth_headers):
         """Test successful upload completion."""
         mock_complete.return_value = sample_job
@@ -144,10 +144,10 @@ class TestIngestRouter:
         
         assert response.status_code == 422
     
-    @patch("app.routers.ingest.UploadService.complete_upload")
+    @patch("app.ingest.router.UploadService.complete_upload")
     def test_complete_upload_job_not_found(self, mock_complete, client):
         """Test completing upload with non-existent job."""
-        from app.exceptions import JobNotFoundError
+        from app.jobs.exceptions import JobNotFoundError
         
         mock_complete.side_effect = JobNotFoundError("Job not found")
         
@@ -161,10 +161,10 @@ class TestIngestRouter:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
     
-    @patch("app.routers.ingest.UploadService.complete_upload")
+    @patch("app.ingest.router.UploadService.complete_upload")
     def test_complete_upload_invalid_state(self, mock_complete, client):
         """Test completing upload with invalid job state."""
-        from app.exceptions import InvalidJobStateError
+        from app.jobs.exceptions import InvalidJobStateError
         
         mock_complete.side_effect = InvalidJobStateError("Invalid state")
         
@@ -178,10 +178,10 @@ class TestIngestRouter:
         assert response.status_code == 400
         assert "state" in response.json()["detail"].lower()
     
-    @patch("app.routers.ingest.UploadService.complete_upload")
+    @patch("app.ingest.router.UploadService.complete_upload")
     def test_complete_upload_storage_error(self, mock_complete, client):
         """Test completing upload with storage error."""
-        from app.exceptions import StorageError
+        from app.common.exceptions.infrastucture import StorageError
         
         mock_complete.side_effect = StorageError("File not found")
         

@@ -4,16 +4,17 @@ Tests for UploadService.
 import pytest
 from unittest.mock import patch, MagicMock
 
-from app.services.upload_service import UploadService
-from app.models import Job, FileUpload
-from app.constants import JobStatus, JobType, LogFormat
-from app.exceptions import JobNotFoundError, InvalidJobStateError, StorageError
+from app.ingest.service import UploadService
+from app.jobs.models import Job, FileUpload
+from app.common.constants import JobStatus, JobType, LogFormat
+from app.jobs.exceptions import JobNotFoundError, InvalidJobStateError
+from app.common.exceptions.infrastucture import StorageError
 
 
 class TestUploadService:
     """Test cases for UploadService."""
     
-    @patch("app.services.upload_service.generate_presigned_put")
+    @patch("app.ingest.service.generate_presigned_put")
     def test_init_upload_success(self, mock_presigned, db_session):
         """Test successful upload initialization."""
         mock_presigned.return_value = "https://test-presigned-url.com"
@@ -37,7 +38,7 @@ class TestUploadService:
         assert presigned_url == "https://test-presigned-url.com"
         mock_presigned.assert_called_once()
     
-    @patch("app.services.upload_service.generate_presigned_put")
+    @patch("app.ingest.service.generate_presigned_put")
     def test_init_upload_with_invalid_format(self, mock_presigned, db_session):
         """Test upload initialization with invalid log format."""
         mock_presigned.return_value = "https://test-presigned-url.com"
@@ -52,7 +53,7 @@ class TestUploadService:
         # Should default to JSON
         assert upload.log_format == LogFormat.JSON.value
     
-    @patch("app.services.upload_service.generate_presigned_put")
+    @patch("app.ingest.service.generate_presigned_put")
     def test_init_upload_storage_error(self, mock_presigned, db_session):
         """Test upload initialization with storage error."""
         mock_presigned.side_effect = StorageError("Storage error")
@@ -68,8 +69,8 @@ class TestUploadService:
         jobs = db_session.query(Job).all()
         assert len(jobs) == 0
     
-    @patch("app.services.upload_service.object_exists")
-    @patch("app.services.upload_service.enqueue_job")
+    @patch("app.ingest.service.object_exists")
+    @patch("app.ingest.service.enqueue_job")
     def test_complete_upload_success(
         self,
         mock_enqueue,
@@ -102,7 +103,7 @@ class TestUploadService:
     
     def test_complete_upload_invalid_state(self, db_session, sample_job):
         """Test completing upload with invalid job state."""
-        from app.services.job_service import JobService
+        from app.jobs.service import JobService
         
         # Change job status to QUEUED
         JobService.update_job_status(
@@ -118,7 +119,7 @@ class TestUploadService:
                 job_id=sample_job.job_id,
             )
     
-    @patch("app.services.upload_service.object_exists")
+    @patch("app.ingest.service.object_exists")
     def test_complete_upload_file_not_found(
         self,
         mock_object_exists,
@@ -137,8 +138,8 @@ class TestUploadService:
         
         assert "not found" in str(exc_info.value).lower()
     
-    @patch("app.services.upload_service.object_exists")
-    @patch("app.services.upload_service.enqueue_job")
+    @patch("app.ingest.service.object_exists")
+    @patch("app.ingest.service.enqueue_job")
     def test_complete_upload_enqueue_failure(
         self,
         mock_enqueue,

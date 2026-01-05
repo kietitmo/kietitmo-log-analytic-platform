@@ -63,17 +63,21 @@ tests/
 ├── conftest.py              # Pytest fixtures và configuration
 ├── test_main.py            # Tests cho main application
 ├── test_database.py        # Tests cho database module
-├── test_storage.py         # Tests cho storage module
-├── test_queue.py           # Tests cho queue module
+├── test_storage.py         # Tests cho storage infrastructure
+├── test_queue.py           # Tests cho queue infrastructure
 ├── test_exceptions.py      # Tests cho exceptions
-├── test_services/          # Tests cho services
-│   ├── test_job_service.py
-│   └── test_upload_service.py
-└── test_routers/           # Tests cho routers
-    ├── test_ingest_router.py
-    ├── test_jobs_router.py
-    └── test_health_router.py
+├── test_auth.py            # Tests cho auth module
+├── test_services/          # Tests cho domain services
+│   ├── test_job_service.py      # jobs domain
+│   └── test_upload_service.py  # ingest domain
+└── test_routers/           # Tests cho domain routers
+    ├── test_ingest_router.py   # ingest domain
+    ├── test_jobs_router.py     # jobs domain
+    ├── test_auth_router.py     # auth domain
+    └── test_health_router.py   # common routers
 ```
+
+**Lưu ý**: Tests được tổ chức theo domain structure để dễ quản lý và maintain.
 
 ## Test Fixtures
 
@@ -82,11 +86,13 @@ Các fixtures chính trong `conftest.py`:
 - `db_engine`: SQLite in-memory database engine
 - `db_session`: Database session cho tests
 - `client`: FastAPI TestClient với database override
-- `sample_job`: Sample job instance
-- `sample_file_upload`: Sample file upload instance
-- `mock_redis`: Mock Redis client
-- `mock_s3`: Mock S3 client
+- `sample_job`: Sample job instance (jobs domain)
+- `sample_file_upload`: Sample file upload instance (jobs domain)
+- `mock_redis`: Mock Redis client (common/infrastructure/queue)
+- `mock_s3`: Mock S3 client (common/infrastructure/storage)
 - `mock_enqueue_job`: Mock enqueue_job function
+- `auth_token`: Test JWT token (auth domain)
+- `auth_headers`: Authentication headers cho requests
 
 ## Coverage Requirements
 

@@ -5,13 +5,13 @@ import pytest
 from unittest.mock import patch, MagicMock
 from botocore.exceptions import ClientError, BotoCoreError
 
-from app.storage import (
+from app.common.infrastructure.storage import (
     generate_presigned_put,
     object_exists,
     get_object_size,
     check_storage_connection,
 )
-from app.exceptions import StorageError
+from app.common.exceptions.infrastucture import StorageError
 
 
 class TestStorage:

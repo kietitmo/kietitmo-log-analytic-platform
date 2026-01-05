@@ -4,7 +4,7 @@ Tests for exceptions module.
 import pytest
 from fastapi import HTTPException
 
-from app.exceptions import (
+from app.common.exceptions.infrastucture import (
     IngestServiceException,
     JobNotFoundError,
     InvalidJobStateError,

@@ -10,11 +10,11 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from faker import Faker
 
-from app.database import Base, get_db
+from app.common.database import Base, get_db
 from app.main import app
-from app.config import settings
-from app.models import Job, FileUpload
-from app.constants import JobStatus, JobType, StorageType, LogFormat
+from app.common.config import settings
+from app.jobs.models import Job, FileUpload
+from app.common.constants import JobStatus, JobType, StorageType, LogFormat
 
 fake = Faker()
 
@@ -111,7 +111,7 @@ def sample_file_upload(db_session, sample_job) -> FileUpload:
 @pytest.fixture
 def mock_redis():
     """Mock Redis client."""
-    with patch("app.queue.redis_client") as mock:
+    with patch("app.common.infrastructure.queue.redis_client") as mock:
         mock_redis_client = MagicMock()
         mock_redis_client.ping.return_value = True
         mock_redis_client.xadd.return_value = "test-message-id"
@@ -122,7 +122,7 @@ def mock_redis():
 @pytest.fixture
 def mock_s3():
     """Mock S3 client."""
-    with patch("app.storage.s3_client") as mock:
+    with patch("app.common.infrastructure.storage.s3_client") as mock:
         mock_s3_client = MagicMock()
         mock_s3_client.generate_presigned_url.return_value = "https://test-presigned-url.com"
         mock_s3_client.head_object.return_value = {"ContentLength": 1024}
@@ -133,7 +133,7 @@ def mock_s3():
 @pytest.fixture
 def mock_enqueue_job():
     """Mock enqueue_job function."""
-    with patch("app.queue.enqueue_job") as mock:
+    with patch("app.common.infrastructure.queue.enqueue_job") as mock:
         mock.return_value = "test-message-id"
         yield mock
 
@@ -141,8 +141,15 @@ def mock_enqueue_job():
 @pytest.fixture
 def auth_token():
     """Create a test authentication token."""
-    from app.auth import create_test_token
-    return create_test_token(user_id="test-user-001", username="testuser")
+    from app.auth.jwt import create_access_token
+    token_data = {
+        "sub": "test-user-001",
+        "username": "testuser",
+        "email": "testuser@test.com",
+        "roles": ["user"],
+        "permissions": [],
+    }
+    return create_access_token(token_data)
 
 
 @pytest.fixture

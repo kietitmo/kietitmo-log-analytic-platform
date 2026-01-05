@@ -1,0 +1,4 @@
+"""
+Jobs domain module.
+"""
+

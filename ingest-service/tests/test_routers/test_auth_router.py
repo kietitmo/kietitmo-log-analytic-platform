@@ -4,7 +4,7 @@ Tests for auth router.
 import pytest
 from unittest.mock import patch
 
-from app.auth import create_test_token
+from app.auth.jwt import create_access_token
 
 
 class TestAuthRouter:
@@ -152,7 +152,15 @@ class TestAuthRouter:
     def test_verify_token_valid(self, client):
         """Test verifying a valid token."""
         # Create a test token
-        token = create_test_token(user_id="test-123", username="testuser")
+        from app.auth.jwt import create_access_token
+        token_data = {
+            "sub": "test-123",
+            "username": "testuser",
+            "email": "testuser@test.com",
+            "roles": ["user"],
+            "permissions": [],
+        }
+        token = create_access_token(token_data)
         
         response = client.post(
             "/auth/verify",

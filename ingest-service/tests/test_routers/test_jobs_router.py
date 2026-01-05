@@ -3,8 +3,8 @@ Tests for jobs router.
 """
 import pytest
 
-from app.models import Job
-from app.constants import JobStatus, JobType
+from app.jobs.models import Job
+from app.common.constants import JobStatus, JobType
 
 
 class TestJobsRouter:

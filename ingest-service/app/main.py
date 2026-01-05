@@ -9,14 +9,18 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import time
 
-from app.config import settings
-from app.database import init_db, engine
-from app.logger import setup_logging, get_logger
-from app.routers import ingest, jobs, health, auth
-from app.exceptions import IngestServiceException, handle_service_exception
-from app.middleware.timeout import TimeoutMiddleware
-from app.middleware.rate_limit import limiter
+from app.common.config import settings
+from app.common.database import init_db, engine
+from app.common.logger import setup_logging, get_logger
+from app.ingest.router import router as ingest_router
+from app.jobs.router import router as jobs_router
+from app.common.routers.health import router as health_router
+from app.users.router import router as users_router
+from app.auth.router import router as auth_router
+from app.common.middleware.timeout import TimeoutMiddleware
+from app.common.middleware.rate_limit import limiter
 from slowapi.errors import RateLimitExceeded as SlowAPIRateLimitExceeded
+from app.common.exceptions.domain import DomainException
 
 # Setup logging
 setup_logging()
@@ -34,6 +38,11 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug mode: {settings.DEBUG}")
     
     try:
+        # Validate production configuration
+        if settings.is_production:
+            settings.validate_production()
+            logger.info("Production configuration validated")
+        
         # Initialize database
         init_db()
         logger.info("Application startup completed")
@@ -138,16 +147,25 @@ async def log_requests(request: Request, call_next):
         raise
 
 
-# Exception handlers
-@app.exception_handler(IngestServiceException)
-async def service_exception_handler(request: Request, exc: IngestServiceException):
-    """Handle service exceptions."""
-    logger.warning(f"Service exception: {exc}", exc_info=True)
-    http_exc = handle_service_exception(exc)
-    return JSONResponse(
-        status_code=http_exc.status_code,
-        content={"detail": http_exc.detail},
+@app.exception_handler(DomainException)
+async def domain_exception_handler(request: Request, exc: DomainException):
+    logger.warning(
+        "Domain exception",
+        extra={
+            "path": request.url.path,
+            "error_code": exc.error_code,
+        },
+        exc_info=True,
     )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": str(exc),
+            "error_code": exc.error_code,
+        },
+    )
+
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -201,11 +219,11 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
-app.include_router(auth.router)
-app.include_router(health.router)
-app.include_router(ingest.router)
-app.include_router(jobs.router)
-
+app.include_router(auth_router)
+app.include_router(health_router)
+app.include_router(ingest_router)
+app.include_router(jobs_router)
+app.include_router(users_router)
 
 @app.get("/", tags=["root"])
 async def root():

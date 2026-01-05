@@ -5,14 +5,14 @@ import pytest
 from unittest.mock import patch, MagicMock
 from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 
-from app.queue import enqueue_job, check_redis_connection, get_redis_client
-from app.exceptions import QueueError
+from app.common.infrastructure.queue import enqueue_job, check_redis_connection, get_redis_client
+from app.common.exceptions.infrastucture import QueueError
 
 
 class TestQueue:
     """Test cases for queue module."""
     
-    @patch("app.queue.get_redis_client")
+    @patch("app.common.infrastructure.queue.get_redis_client")
     def test_enqueue_job_success(self, mock_get_client):
         """Test successful job enqueue."""
         mock_client = MagicMock()
@@ -24,7 +24,7 @@ class TestQueue:
         assert message_id == b"test-message-id"
         mock_client.xadd.assert_called_once()
     
-    @patch("app.queue.get_redis_client")
+    @patch("app.common.infrastructure.queue.get_redis_client")
     def test_enqueue_job_redis_error(self, mock_get_client):
         """Test job enqueue with Redis error."""
         from redis.exceptions import RedisError
