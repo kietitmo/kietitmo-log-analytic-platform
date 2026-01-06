@@ -1,82 +1,121 @@
 """
 Pytest configuration and shared fixtures.
+⚠️ IMPORTANT:
+- DATABASE_URL must be set BEFORE importing app
 """
+
+# ============================================================
+# BOOTSTRAP CONFIG (RUNS BEFORE app IMPORT)
+# ============================================================
+import os
+
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+os.environ["ENVIRONMENT"] = "test"
+os.environ["DEBUG"] = "true"
+
+# ============================================================
+# STANDARD IMPORTS
+# ============================================================
 import pytest
 from typing import Generator
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
+
 from fastapi.testclient import TestClient
 from faker import Faker
 
-from app.common.database import Base, get_db
+# ============================================================
+# APP IMPORTS (SAFE NOW)
+# ============================================================
 from app.main import app
-from app.common.config import settings
+from app.common.database import Base, get_db
 from app.jobs.models import Job, FileUpload
-from app.common.constants import JobStatus, JobType, StorageType, LogFormat
+from app.common import database
+from app.common.constants import (
+    JobStatus,
+    JobType,
+    StorageType,
+    LogFormat,
+)
 
 fake = Faker()
 
+# ============================================================
+# DATABASE FIXTURES
+# ============================================================
 
-# Override settings for testing
-@pytest.fixture(scope="session", autouse=True)
-def setup_test_settings():
-    """Override settings for testing."""
-    # Use in-memory SQLite for testing
-    settings.DATABASE_URL = "sqlite:///:memory:"
-    settings.DEBUG = True
-    settings.ENVIRONMENT = "development"
-    yield
-    # Cleanup if needed
-
-
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def db_engine():
-    """Create a test database engine."""
+    """
+    Create ONE SQLite in-memory engine for the whole test session.
+    StaticPool is REQUIRED so memory DB persists across connections.
+    """
     engine = create_engine(
-        "sqlite:///:memory:",
+        "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
+        future=True,
     )
+
     Base.metadata.create_all(bind=engine)
     yield engine
-    Base.metadata.drop_all(bind=engine)
     engine.dispose()
-
 
 @pytest.fixture(scope="function")
 def db_session(db_engine) -> Generator[Session, None, None]:
-    """Create a test database session."""
+    connection = db_engine.connect()
+    transaction = connection.begin()
+
     TestingSessionLocal = sessionmaker(
-        autocommit=False,
+        bind=connection,
         autoflush=False,
-        bind=db_engine,
+        autocommit=False,
+        expire_on_commit=False,
+        future=True,
     )
+
+    # 🔥 OVERRIDE GLOBALS
+    database.engine = db_engine
+    database.SessionLocal = TestingSessionLocal
+
     session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
+        transaction.rollback()
+        connection.close()
 
+
+# ============================================================
+# FASTAPI CLIENT (DEPENDENCY OVERRIDE)
+# ============================================================
 
 @pytest.fixture(scope="function")
-def client(db_session) -> TestClient:
-    """Create a test client with database override."""
+def client(db_session) -> Generator[TestClient, None, None]:
+    """
+    FastAPI TestClient with overridden get_db dependency.
+    """
+
     def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
-    
+        yield db_session
+
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    with TestClient(app) as client:
+        yield client
+
     app.dependency_overrides.clear()
 
 
+# ============================================================
+# DOMAIN FIXTURES
+# ============================================================
+
 @pytest.fixture
 def sample_job(db_session) -> Job:
-    """Create a sample job for testing."""
     job = Job(
         job_id="test-job-id",
         job_type=JobType.FILE_UPLOAD.value,
@@ -93,7 +132,6 @@ def sample_job(db_session) -> Job:
 
 @pytest.fixture
 def sample_file_upload(db_session, sample_job) -> FileUpload:
-    """Create a sample file upload for testing."""
     upload = FileUpload(
         job_id=sample_job.job_id,
         storage_type=StorageType.S3.value,
@@ -108,52 +146,55 @@ def sample_file_upload(db_session, sample_job) -> FileUpload:
     return upload
 
 
+# ============================================================
+# MOCKS (INFRASTRUCTURE)
+# ============================================================
+
 @pytest.fixture
 def mock_redis():
-    """Mock Redis client."""
     with patch("app.common.infrastructure.queue.redis_client") as mock:
-        mock_redis_client = MagicMock()
-        mock_redis_client.ping.return_value = True
-        mock_redis_client.xadd.return_value = "test-message-id"
-        mock.return_value = mock_redis_client
-        yield mock_redis_client
+        client = MagicMock()
+        client.ping.return_value = True
+        client.xadd.return_value = "test-message-id"
+        mock.return_value = client
+        yield client
 
 
 @pytest.fixture
 def mock_s3():
-    """Mock S3 client."""
     with patch("app.common.infrastructure.storage.s3_client") as mock:
-        mock_s3_client = MagicMock()
-        mock_s3_client.generate_presigned_url.return_value = "https://test-presigned-url.com"
-        mock_s3_client.head_object.return_value = {"ContentLength": 1024}
-        mock_s3_client.list_buckets.return_value = {"Buckets": []}
-        yield mock_s3_client
+        client = MagicMock()
+        client.generate_presigned_url.return_value = "https://test-url"
+        client.head_object.return_value = {"ContentLength": 1024}
+        client.list_buckets.return_value = {"Buckets": []}
+        yield client
 
 
 @pytest.fixture
 def mock_enqueue_job():
-    """Mock enqueue_job function."""
     with patch("app.common.infrastructure.queue.enqueue_job") as mock:
         mock.return_value = "test-message-id"
         yield mock
 
 
+# ============================================================
+# AUTH FIXTURES
+# ============================================================
+
 @pytest.fixture
 def auth_token():
-    """Create a test authentication token."""
     from app.auth.jwt import create_access_token
-    token_data = {
+
+    payload = {
         "sub": "test-user-001",
         "username": "testuser",
-        "email": "testuser@test.com",
+        "email": "test@test.com",
         "roles": ["user"],
         "permissions": [],
     }
-    return create_access_token(token_data)
+    return create_access_token(payload)
 
 
 @pytest.fixture
 def auth_headers(auth_token):
-    """Create authentication headers."""
     return {"Authorization": f"Bearer {auth_token}"}
-

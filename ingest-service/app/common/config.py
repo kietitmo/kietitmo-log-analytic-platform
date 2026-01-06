@@ -147,8 +147,13 @@ class Settings(BaseSettings):
     
     @field_validator("DATABASE_URL")
     @classmethod
-    def validate_database_url(cls, v: str) -> str:
+    def validate_database_url(cls, v: str, info) -> str:
         """Validate database URL format."""
+        env = info.data.get("ENVIRONMENT")
+
+        if env == "test":
+            return v
+        
         if not v.startswith(("postgresql://", "postgresql+psycopg2://")):
             raise ValueError("DATABASE_URL must be a PostgreSQL connection string")
         return v
@@ -165,7 +170,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_environment(cls, v: str) -> str:
         """Validate environment value."""
-        allowed = {"development", "staging", "production"}
+        allowed = {"development", "staging", "production", "test"}
         if v.lower() not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return v.lower()

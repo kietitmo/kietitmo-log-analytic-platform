@@ -15,17 +15,31 @@ from app.common.exceptions.infrastucture import DatabaseError
 
 logger = get_logger(__name__)
 
-# Create engine with connection pooling
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_recycle=settings.DB_POOL_RECYCLE,
-    pool_pre_ping=True,  # Verify connections before using
-    echo=settings.DEBUG,  # Log SQL queries in debug mode
-    future=True,
-)
+
+def create_db_engine():
+    """Create database engine based on environment & dialect."""
+    database_url = settings.DATABASE_URL
+
+    # ✅ SQLite (test)
+    if database_url.startswith("sqlite"):
+        return create_engine(
+            database_url,
+            connect_args={"check_same_thread": False},
+        )
+
+    # Create engine with connection pooling
+    return create_engine(
+        settings.DATABASE_URL,
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_timeout=settings.DB_POOL_TIMEOUT,
+        pool_recycle=settings.DB_POOL_RECYCLE,
+        pool_pre_ping=True,  # Verify connections before using
+        echo=settings.DEBUG,  # Log SQL queries in debug mode
+        future=True,
+    )
+
+engine = create_db_engine()
 
 # Session factory
 SessionLocal = sessionmaker(

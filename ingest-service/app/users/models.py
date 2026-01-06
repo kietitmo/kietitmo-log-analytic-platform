@@ -6,6 +6,7 @@ from sqlalchemy import Column, String, TIMESTAMP, Index, Boolean
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.sql import func
 
+from app.common.db_types import StringList
 from app.common.database import Base
 
 class User(Base):
@@ -27,8 +28,8 @@ class User(Base):
     # Store roles and permissions as arrays
     # Note: ARRAY is PostgreSQL-specific. For SQLite compatibility in tests,
     # consider using JSON or separate tables
-    roles = Column(ARRAY(String), default=[], nullable=False)
-    permissions = Column(ARRAY(String), default=[], nullable=False)
+    roles = Column(StringList, default=list, nullable=False)
+    permissions = Column(StringList, default=list, nullable=False)
     
     created_at = Column(
         TIMESTAMP(timezone=True),

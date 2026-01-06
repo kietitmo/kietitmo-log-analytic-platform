@@ -5,11 +5,10 @@ import pytest
 from datetime import timedelta
 from unittest.mock import patch
 
+from app.auth.dependencies import get_current_user
 from app.auth.jwt import create_access_token, create_refresh_token, decode_token
 from app.auth.utils import verify_password, get_password_hash
-from app.auth.dependencies import get_current_user
-from app.common.exceptions.infrastucture import ValidationError
-from fastapi import HTTPException
+from app.auth.exceptions import InvalidToken
 from fastapi.security import HTTPAuthorizationCredentials
 
 
@@ -73,7 +72,7 @@ class TestAuth:
         """Test token decoding with invalid token."""
         invalid_token = "invalid.token.here"
         
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(InvalidToken) as exc_info:
             decode_token(invalid_token)
         
         assert exc_info.value.status_code == 401
@@ -95,7 +94,7 @@ class TestAuth:
             algorithm=settings.JWT_ALGORITHM,
         )
         
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(InvalidToken) as exc_info:
             decode_token(expired_token)
         
         assert exc_info.value.status_code == 401
@@ -116,12 +115,7 @@ class TestAuth:
         assert payload["sub"] == "test-123"
         assert payload["username"] == "testuser"
     
-    @patch("app.auth.security")
-    def test_get_current_user_success(self, mock_security):
-        """Test getting current user with valid token."""
-        from fastapi.security import HTTPAuthorizationCredentials
-        
-        # Create a valid token
+    def test_get_current_user_success(self):
         token_data = {
             "sub": "user-123",
             "username": "testuser",
@@ -130,17 +124,17 @@ class TestAuth:
             "permissions": [],
         }
         token = create_access_token(token_data)
-        
-        # Mock credentials
-        mock_credentials = HTTPAuthorizationCredentials(
+
+        credentials = HTTPAuthorizationCredentials(
             scheme="Bearer",
             credentials=token,
         )
-        mock_security.return_value = mock_credentials
-        
-        # This is a simplified test - in practice, get_current_user is a dependency
-        # and would be called differently
-        pass  # Would need more complex mocking for full test
+
+        user = get_current_user(credentials)
+
+        assert user.user_id == "user-123"
+        assert user.username == "testuser"
+        assert user.email == "testuser@test.com"
     
     def test_token_contains_refresh_type(self):
         """Test that refresh token contains type field."""
@@ -150,11 +144,11 @@ class TestAuth:
         payload = decode_token(refresh_token)
         assert payload.get("type") == "refresh"
     
-    def test_access_token_does_not_contain_type(self):
-        """Test that access token does not contain type field."""
+    def test_access_token_contains_access_type(self):
         data = {"sub": "user-123", "username": "testuser"}
         access_token = create_access_token(data)
-        
+
         payload = decode_token(access_token)
-        assert payload.get("type") is None
+        assert payload["type"] == "access"
+
 
