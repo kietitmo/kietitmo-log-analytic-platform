@@ -4,8 +4,8 @@ Authentication service for login and user authentication.
 from sqlalchemy.orm import Session
 
 from app.users.service import UserService
-from app.auth.exceptions import InvalidCredentials, InactiveUser
-from app.auth.jwt import create_access_token, create_refresh_token
+from app.auth.exceptions import InvalidCredentials, InactiveUser, InvalidToken
+from app.auth.jwt import create_access_token, create_refresh_token, decode_token
 from app.auth.utils import verify_password
 
 
@@ -53,3 +53,38 @@ class AuthService:
             "user": user,
         }
 
+    @staticmethod
+    def refresh_token(db: Session, refresh_token: str) -> dict:
+        """
+        Refresh access token using a valid refresh token.
+        
+        Args:
+            db: Database session
+            refresh_token: Refresh token string
+            
+        Returns:
+            Dictionary with new token payload
+            
+        Raises:
+            InvalidToken: If refresh token is invalid or expired
+        """
+        payload = decode_token(refresh_token)
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise InvalidToken()
+
+        user = UserService.get_user_or_raise(db, user_id)
+
+        if not user.is_active:
+            raise InactiveUser()
+
+        new_payload = {
+            "sub": user.user_id,
+            "username": user.username,
+            "email": user.email,
+            "roles": user.roles or [],
+            "permissions": user.permissions or [],
+        }
+
+        return new_payload

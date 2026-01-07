@@ -45,25 +45,10 @@ def refresh_token(
     data: RefreshTokenRequest,
     db: Session = Depends(get_db),
 ):
-    from app.users.user_service import UserService
-    
-    payload = decode_token(data.refresh_token)
-
-    if payload.get("type") != "refresh":
-        raise InvalidToken()
-    
-    # Validate user still exists and is active
-    user = UserService.find_user_by_id(db, payload.get("sub"))
-    if not user or not user.is_active:
-        raise InvalidToken()
-
-    token_data = {
-        "sub": user.user_id,
-        "username": user.username,
-        "email": user.email,
-        "roles": user.roles or [],
-        "permissions": user.permissions or [],
-    }
+    token_data = AuthService.refresh_token(
+        db=db,
+        refresh_token=data.refresh_token,
+    )
 
     return TokenResponse(
         access_token=create_access_token(token_data),
