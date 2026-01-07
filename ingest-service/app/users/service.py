@@ -1,4 +1,3 @@
-# app/services/user_service.py
 from typing import Optional
 from datetime import datetime
 from sqlalchemy.orm import Session

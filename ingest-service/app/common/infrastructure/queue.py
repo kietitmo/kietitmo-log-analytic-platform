@@ -19,7 +19,10 @@ redis_client: Optional[redis.Redis] = None
 def get_redis_client() -> redis.Redis:
     """Get or create Redis client with proper configuration."""
     global redis_client
-    
+    if settings.ENVIRONMENT == "test":
+        redis_client = None
+        return redis_client
+
     if redis_client is None:
         try:
             redis_client = redis.Redis.from_url(
