@@ -12,6 +12,8 @@ import os
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["ENVIRONMENT"] = "test"
 os.environ["DEBUG"] = "true"
+os.environ["REDIS_ENABLED"] = "false"
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 # ============================================================
 # STANDARD IMPORTS
@@ -198,3 +200,4 @@ def auth_token():
 @pytest.fixture
 def auth_headers(auth_token):
     return {"Authorization": f"Bearer {auth_token}"}
+
