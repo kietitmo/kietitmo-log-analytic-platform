@@ -8,6 +8,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from sqlalchemy.exc import SQLAlchemyError
 import logging
+import tenacity
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.common.config import settings
 from app.common.logger import get_logger
@@ -114,6 +116,7 @@ def init_db() -> None:
         raise
 
 
+
 def check_db_connection() -> bool:
     """Check if database connection is healthy."""
     try:
@@ -125,4 +128,26 @@ def check_db_connection() -> bool:
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
         return False
+
+
+def run_in_transaction(func, *args, **kwargs):
+    """
+    Run a function within a database transaction with retry logic.
+    
+    The function should be a callable that takes a session as its first argument.
+    The session is automatically created, committed, rolled back, and closed.
+    """
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((SQLAlchemyError, DatabaseError)),
+        reraise=True
+    )
+    def _run_with_retry():
+        with get_db_context() as session:
+            return func(session, *args, **kwargs)
+            
+    return _run_with_retry()
+
 

@@ -39,10 +39,20 @@ def get_rate_limit_key(request: Request) -> str:
     Returns:
         Rate limit key
     """
-    # Try to get user ID from request state if authenticated
-    user_id = getattr(request.state, "user_id", None)
-    if user_id:
-        return f"user:{user_id}"
+    # Try to get user ID from Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        try:
+            token = auth_header.split(" ")[1]
+            # We import here to avoid circular imports if any
+            from app.auth.jwt import decode_token
+            payload = decode_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                return f"user:{user_id}"
+        except Exception:
+            # If token is invalid, fall back to IP
+            pass
     
     # Fall back to IP address
     return get_remote_address(request)

@@ -6,6 +6,8 @@ import sys
 from typing import Any
 from pythonjsonlogger import jsonlogger
 from app.common.config import settings
+from app.common.middleware.request_id import get_request_id
+
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
@@ -22,6 +24,12 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         log_record["line"] = record.lineno
         if settings.ENVIRONMENT:
             log_record["environment"] = settings.ENVIRONMENT
+            
+        # Add request ID if available
+        request_id = get_request_id()
+        if request_id:
+            log_record["request_id"] = request_id
+
 
 
 def setup_logging() -> None:

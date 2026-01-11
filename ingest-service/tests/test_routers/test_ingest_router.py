@@ -71,20 +71,21 @@ class TestIngestRouter:
             },
         )
         
-        assert response.status_code == 403
+        assert response.status_code == 401
     
-    def test_init_upload_missing_fields(self, client):
+    def test_init_upload_missing_fields(self, client, auth_headers):
         """Test upload initialization with missing fields."""
         response = client.post(
             "/ingest/files/init",
             json={
                 "filename": "test.log",
             },
+            headers=auth_headers,
         )
         
         assert response.status_code == 422
     
-    def test_init_upload_invalid_size(self, client):
+    def test_init_upload_invalid_size(self, client, auth_headers):
         """Test upload initialization with invalid size."""
         response = client.post(
             "/ingest/files/init",
@@ -93,12 +94,13 @@ class TestIngestRouter:
                 "size": -1,
                 "log_format": "json",
             },
+            headers=auth_headers,
         )
         
         assert response.status_code == 422
     
     @patch("app.ingest.router.UploadService.init_upload")
-    def test_init_upload_storage_error(self, mock_init, client):
+    def test_init_upload_storage_error(self, mock_init, client, auth_headers):
         """Test upload initialization with storage error."""
         from app.common.exceptions.infrastucture import StorageError
         
@@ -111,6 +113,7 @@ class TestIngestRouter:
                 "size": 1024,
                 "log_format": "json",
             },
+            headers=auth_headers,
         )
         
         assert response.status_code == 503
@@ -135,17 +138,18 @@ class TestIngestRouter:
         assert data["message"] == "Job queued successfully"
         assert "job_id" in data
     
-    def test_complete_upload_missing_job_id(self, client):
+    def test_complete_upload_missing_job_id(self, client, auth_headers):
         """Test completing upload with missing job_id."""
         response = client.post(
             "/ingest/files/complete",
             json={},
+            headers=auth_headers,
         )
         
         assert response.status_code == 422
     
     @patch("app.ingest.router.UploadService.complete_upload")
-    def test_complete_upload_job_not_found(self, mock_complete, client):
+    def test_complete_upload_job_not_found(self, mock_complete, client, auth_headers):
         """Test completing upload with non-existent job."""
         from app.jobs.exceptions import JobNotFoundError
         
@@ -156,13 +160,14 @@ class TestIngestRouter:
             json={
                 "job_id": "non-existent-id",
             },
+            headers=auth_headers,
         )
         
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
     
     @patch("app.ingest.router.UploadService.complete_upload")
-    def test_complete_upload_invalid_state(self, mock_complete, client):
+    def test_complete_upload_invalid_state(self, mock_complete, client, auth_headers):
         """Test completing upload with invalid job state."""
         from app.jobs.exceptions import InvalidJobStateError
         
@@ -173,13 +178,14 @@ class TestIngestRouter:
             json={
                 "job_id": "test-id",
             },
+            headers=auth_headers,
         )
         
         assert response.status_code == 400
         assert "state" in response.json()["detail"].lower()
     
     @patch("app.ingest.router.UploadService.complete_upload")
-    def test_complete_upload_storage_error(self, mock_complete, client):
+    def test_complete_upload_storage_error(self, mock_complete, client, auth_headers):
         """Test completing upload with storage error."""
         from app.common.exceptions.infrastucture import StorageError
         
@@ -190,6 +196,7 @@ class TestIngestRouter:
             json={
                 "job_id": "test-id",
             },
+            headers=auth_headers,
         )
         
         assert response.status_code == 503

@@ -126,7 +126,8 @@ class UploadService:
                     extra={"object_key": upload.object_key},
                 )
 
-                raise StorageError()
+                raise StorageError("File not found in storage")
+
 
             
             # Update job status to QUEUED

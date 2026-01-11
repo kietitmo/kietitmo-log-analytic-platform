@@ -21,6 +21,13 @@ from app.common.middleware.timeout import TimeoutMiddleware
 from app.common.middleware.rate_limit import limiter
 from slowapi.errors import RateLimitExceeded as SlowAPIRateLimitExceeded
 from app.common.exceptions.domain import DomainException
+from app.common.exceptions.infrastucture import InfrastructureException
+from app.common.middleware.request_id import RequestIDMiddleware
+from fastapi.encoders import jsonable_encoder
+
+
+from prometheus_fastapi_instrumentator import Instrumentator
+
 
 # Setup logging
 setup_logging()
@@ -83,6 +90,13 @@ app.add_middleware(
 # Timeout middleware
 if settings.REQUEST_TIMEOUT_ENABLED:
     app.add_middleware(TimeoutMiddleware)
+
+# Request ID middleware
+app.add_middleware(RequestIDMiddleware)
+
+# Prometheus Metrics
+Instrumentator().instrument(app).expose(app)
+
 
 # Rate limiting - handled via decorators, but add exception handler
 app.state.limiter = limiter
@@ -167,6 +181,17 @@ async def domain_exception_handler(request: Request, exc: DomainException):
     )
 
 
+@app.exception_handler(InfrastructureException)
+async def infrastructure_exception_handler(request: Request, exc: InfrastructureException):
+    """Handle infrastructure exceptions."""
+    logger.error(f"Infrastructure exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": str(exc) or "Service unavailable"},
+    )
+
+
+
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -184,8 +209,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.warning(f"Validation error: {exc.errors()}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors()},
+        content={"detail": jsonable_encoder(exc.errors())},
     )
+
 
 
 @app.exception_handler(SlowAPIRateLimitExceeded)

@@ -30,7 +30,7 @@ class TestJobsRouter:
         """Test getting a job without authentication."""
         response = client.get(f"/jobs/{sample_job.job_id}")
         
-        assert response.status_code == 403
+        assert response.status_code == 401
     
     def test_get_job_not_found(self, client, auth_headers):
         """Test getting a non-existent job."""

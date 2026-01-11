@@ -38,30 +38,34 @@ class TestQueue:
         
         assert "enqueue" in str(exc_info.value).lower()
     
-    @patch("app.common.infrastructure.queue.redis.Redis.from_url")
-    def test_get_redis_client_success(self, mock_redis_from_url):
-        """Test successful Redis client creation."""
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_redis_from_url.return_value = mock_client
+    @patch("app.common.infrastructure.queue.settings")
+    @patch("app.common.infrastructure.queue.redis.Redis")
+    def test_get_redis_client_success(self, mock_redis, mock_settings):
+        """Test getting redis client."""
+        mock_settings.ENVIRONMENT = "development"
+        mock_settings.REDIS_URL = "redis://localhost:6379"
         
         # Reset global client
-        import app.common.infrastructure.queue
-        app.common.infrastructure.queue.redis_client = None
+        import app.common.infrastructure.queue as queue_module
+        queue_module.redis_client = None
         
         client = get_redis_client()
         
         assert client is not None
-        mock_client.ping.assert_called_once()
+        mock_redis.from_url.assert_called_once()
     
-    @patch("app.common.infrastructure.queue.redis.Redis.from_url")
-    def test_get_redis_client_connection_error(self, mock_redis_from_url):
-        """Test Redis client creation with connection error."""
-        mock_redis_from_url.side_effect = RedisConnectionError("Connection failed")
+    @patch("app.common.infrastructure.queue.settings")
+    @patch("app.common.infrastructure.queue.redis.Redis")
+    def test_get_redis_client_connection_error(self, mock_redis, mock_settings):
+        """Test redis connection error."""
+        mock_settings.ENVIRONMENT = "development"
+        mock_settings.REDIS_URL = "redis://localhost:6379"
         
         # Reset global client
-        import app.common.infrastructure.queue
-        app.common.infrastructure.queue.redis_client = None
+        import app.common.infrastructure.queue as queue_module
+        queue_module.redis_client = None
+        
+        mock_redis.from_url.side_effect = RedisConnectionError("Connection failed")
         
         with pytest.raises(QueueError) as exc_info:
             get_redis_client()
